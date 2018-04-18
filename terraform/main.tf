@@ -79,6 +79,7 @@ resource "aws_db_instance" "gitlab_postgres" {
   username               = "gitlab"
   password               = "${var.gitlab_postgres_password}"
   vpc_security_group_ids = ["${module.security_groups.internal_psql}"]
+  skip_final_snapshot    = true
 }
 
 resource "aws_elasticache_subnet_group" "gitlab_redis" {
