@@ -1,0 +1,37 @@
+{
+  "variables": {
+    "name": null,
+    "profile": null,
+    "aws_region": "us-east-1"
+  },
+  "builders": [
+    {
+      "type": "amazon-ebs",
+      "region": "{{user `aws_region`}}",
+      "profile": "{{user `profile`}}",
+      "source_ami_filter": {
+        "filters": {
+          "product-code": "aw0evgkw8e5c1q413zgy5pjce"
+        },
+        "owners": [
+          "aws-marketplace"
+        ],
+        "most_recent": true
+      },
+      "ami_name": "{{user `name`}}-{{timestamp}}",
+      "ami_description": "CentOS 7 with gitlab-ee installed and configured",
+      "ena_support": "true",
+      "instance_type": "t2.large",
+      "ssh_username": "centos",
+      "tags": {
+        "OS Version": "CentOS 7"
+      }
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "ansible",
+      "playbook_file": "../ansible/gitlab.yml"
+    }
+  ]
+}

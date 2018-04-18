@@ -1,0 +1,36 @@
+- hosts: all
+  become: true
+  tasks:
+
+    - name: Create mount point for gitlab-data
+      file:
+        path: /gitlab-data
+        state: directory
+    
+    - name: yum update
+      yum:
+        name: '*'
+        state: latest
+
+    - name: Install required packages
+      yum:
+        name: "{{ item }}"
+        update_cache: yes
+      with_items:
+        - curl
+        - policycoreutils-python
+        - openssh-server
+
+    - name: Start and enable sshd
+      systemd:
+        name: sshd
+        enabled: true
+        state: started
+
+    - name: Add gitlab repo
+      shell: curl https://packages.gitlab.com/install/repositories/gitlab/gitlab-ee/script.rpm.sh | bash
+
+    - name: Install gitlab-ee
+      yum:
+        name: gitlab-ee
+        update_cache: yes

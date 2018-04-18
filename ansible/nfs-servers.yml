@@ -1,0 +1,82 @@
+- hosts: "{{ nfs_server_hosts }}"
+  become: true
+  vars:
+    ansible_ssh_user: centos
+    ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -q {{ bastion_user }}@{{ bastion_host }}"'
+    ansible_ssh_extra_args: '-o StrictHostKeyChecking=no'
+
+  pre_tasks:
+
+    - easy_install:
+        name: pip
+        state: latest
+
+    - pip:
+        name: boto
+
+    - name: Attach EBS volumes
+      ec2_vol:
+        id: '{{ item.0 }}'
+        instance: '{{ instance_id }}'
+        state: present
+        device_name: '{{ item.1 }}'
+        region: '{{ region }}'
+      with_together:
+        - '{{ volumes }}'
+        - '{{ devices }}'
+
+    - name: Configure NFS to use more concurrent processes
+      lineinfile:
+        path: /etc/sysconfig/nfs
+        line: "RPCNFSDCOUNT=16"
+        regexp: "^#RPCNFSDCOUNT=16"
+
+    - name: Configure NFS to use more resources
+      copy:
+        content: |
+          sunrpc.tcp_slot_table_entries = 128
+          sunrpc.tcp_max_slot_table_entries = 128
+          net.core.rmem_default = 262144
+          net.core.rmem_max = 16777216
+          net.core.wmem_default = 262144
+          net.core.wmem_max = 16777216
+          net.ipv4.tcp_rmem = 4096 262144 16777216
+          net.ipv4.tcp_wmem = 4096 262144 16777216
+          net.ipv4.tcp_window_scaling = 1
+          net.ipv4.tcp_syncookies = 0
+          net.ipv4.tcp_timestamps = 0
+          net.ipv4.tcp_sack = 0
+          net.ipv4.ip_local_port_range = 1024 65000
+          fs.inode-max = 128000
+          fs.file-max = 64000
+        dest: /etc/sysctl.d/30-nfs.conf
+
+    - name: Apply NFS configuration from previous task
+      command: sysctl --system
+
+  roles:
+
+    - role: aloisbarreras.ebs-raid-array
+      raid_dev: /dev/md0
+      raid_level: 0
+      raid_name: gitlab-data
+      raid_mount: /gitlab-data
+      raid_devices: '{{ devices }}'
+
+    - role: geerlingguy.nfs
+      nfs_exports:
+        - "/gitlab-data {{ cidr }}(rw,sync,no_root_squash)"
+    
+  post_tasks:
+
+    - name: Create directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        recurse: yes
+      with_items:
+        - /gitlab-data/git-data
+        - /gitlab-data/.ssh
+        - /gitlab-data/uploads
+        - /gitlab-data/shared
+        - /gitlab-data/builds
